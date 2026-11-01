@@ -68,9 +68,6 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
               autoFocus
               className="w-full px-4 py-2.5 text-center text-xl tracking-widest font-mono rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
             />
-            <p className="text-[11px] text-slate-400 mt-1 text-center">
-              PIN Default: <span className="font-mono font-medium text-slate-600">1234</span> (dapat diubah di Pengaturan)
-            </p>
           </div>
 
           {error && (

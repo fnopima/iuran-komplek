@@ -55,7 +55,7 @@ export const LoginGateModal: React.FC<LoginGateModalProps> = ({
       setError('');
       onSuccess('admin');
     } else {
-      setError('PIN Pengurus (Admin) salah. Default: 1234');
+      setError('PIN Pengurus (Admin) salah.');
     }
   };
 
@@ -143,7 +143,6 @@ export const LoginGateModal: React.FC<LoginGateModalProps> = ({
                 </div>
                 <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
                   <span>Password bawaan: <strong className="font-mono text-slate-600 font-semibold">andara</strong></span>
-                  <span className="text-indigo-600">Dapat diubah oleh Admin</span>
                 </div>
               </div>
 
@@ -179,7 +178,7 @@ export const LoginGateModal: React.FC<LoginGateModalProps> = ({
                       setAdminPin(e.target.value);
                       setError('');
                     }}
-                    placeholder="Contoh: 1234"
+                    placeholder=""
                     autoFocus
                     className="w-full pl-3.5 pr-10 py-2.5 text-center text-sm font-mono tracking-widest rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                   />
@@ -190,9 +189,6 @@ export const LoginGateModal: React.FC<LoginGateModalProps> = ({
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
-                </div>
-                <div className="mt-2 text-center text-[11px] text-slate-400">
-                  PIN bawaan pengurus: <strong className="font-mono text-slate-600 font-semibold">1234</strong>
                 </div>
               </div>
 

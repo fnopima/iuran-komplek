@@ -194,7 +194,7 @@ export const SelfReportModal: React.FC<SelfReportModalProps> = ({
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(Number(e.target.value))}
-                min={1000}
+                min={0}
                 step={5000}
                 required
                 className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"
