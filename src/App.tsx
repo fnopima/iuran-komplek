@@ -29,13 +29,20 @@ import { ExpensesView } from './components/ExpensesView';
 import { SettingsView } from './components/SettingsView';
 import { ReceiptModal } from './components/ReceiptModal';
 import { AdminPinModal } from './components/AdminPinModal';
+import { LoginGateModal } from './components/LoginGateModal';
 import { SelfReportModal } from './components/SelfReportModal';
 import { NewPaymentModal } from './components/NewPaymentModal';
 import { NewOtherIncomeModal } from './components/NewOtherIncomeModal';
 import { Loader2 } from 'lucide-react';
 
 export default function App() {
-  const [userRole, setUserRole] = useState<UserRole>('admin');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return sessionStorage.getItem('iuran_komplek_authenticated') === 'true';
+  });
+  const [userRole, setUserRole] = useState<UserRole>(() => {
+    const saved = sessionStorage.getItem('iuran_komplek_auth_role');
+    return saved === 'admin' || saved === 'warga' ? (saved as UserRole) : 'warga';
+  });
   const [currentTab, setCurrentTab] = useState<ActiveTab>('dashboard');
   const [residents, setResidents] = useState<Resident[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -86,6 +93,27 @@ export default function App() {
 
   const pendingVerificationCount = payments.filter((p) => p.status === 'pending').length;
 
+  // Auto redirect away from settings or residents if non-admin
+  useEffect(() => {
+    if (userRole !== 'admin' && (currentTab === 'settings' || currentTab === 'residents')) {
+      setCurrentTab('dashboard');
+    }
+  }, [userRole, currentTab]);
+
+  const handleRoleChange = (role: UserRole) => {
+    setUserRole(role);
+    sessionStorage.setItem('iuran_komplek_auth_role', role);
+    if (role !== 'admin' && (currentTab === 'settings' || currentTab === 'residents')) {
+      setCurrentTab('dashboard');
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('iuran_komplek_authenticated');
+    sessionStorage.removeItem('iuran_komplek_auth_role');
+    setIsAuthenticated(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-emerald-100 selection:text-emerald-900">
       {/* Header */}
@@ -93,11 +121,12 @@ export default function App() {
         currentTab={currentTab}
         onSelectTab={(tab) => setCurrentTab(tab)}
         userRole={userRole}
-        onChangeRole={(role) => setUserRole(role)}
+        onChangeRole={handleRoleChange}
         onOpenPinModal={() => setIsAdminPinOpen(true)}
         settings={settings}
         pendingVerificationCount={pendingVerificationCount}
         dbInfo={dbInfo}
+        onLogout={handleLogout}
       />
 
       {/* Main Container */}
@@ -160,7 +189,7 @@ export default function App() {
               />
             )}
 
-            {currentTab === 'residents' && (
+            {currentTab === 'residents' && userRole === 'admin' && (
               <ResidentsView
                 residents={residents}
                 userRole={userRole}
@@ -175,7 +204,7 @@ export default function App() {
               />
             )}
 
-            {currentTab === 'settings' && (
+            {currentTab === 'settings' && userRole === 'admin' && (
               <SettingsView
                 settings={settings}
                 userRole={userRole}
@@ -203,11 +232,23 @@ export default function App() {
       </footer>
 
       {/* Modals */}
+      <LoginGateModal
+        isOpen={!isAuthenticated}
+        onSuccess={(role) => {
+          setUserRole(role);
+          setIsAuthenticated(true);
+          sessionStorage.setItem('iuran_komplek_authenticated', 'true');
+          sessionStorage.setItem('iuran_komplek_auth_role', role);
+        }}
+        settings={settings}
+        dbInfo={dbInfo}
+      />
+
       <AdminPinModal
         isOpen={isAdminPinOpen}
         onClose={() => setIsAdminPinOpen(false)}
         onSuccess={() => {
-          setUserRole('admin');
+          handleRoleChange('admin');
           setIsAdminPinOpen(false);
         }}
         correctPin={settings.adminPin || '1234'}

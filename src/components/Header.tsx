@@ -12,6 +12,7 @@ import {
   Wifi,
   Lock,
   HardDrive,
+  LogOut,
 } from 'lucide-react';
 import type { ActiveTab, UserRole, AppSettings, DatabaseInfo } from '../types';
 
@@ -24,6 +25,7 @@ interface HeaderProps {
   settings: AppSettings;
   pendingVerificationCount: number;
   dbInfo?: DatabaseInfo;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -35,9 +37,11 @@ export const Header: React.FC<HeaderProps> = ({
   settings,
   pendingVerificationCount,
   dbInfo,
+  onLogout,
 }) => {
-  const navItems = [
+  const adminNavItems = [
     { id: 'dashboard', label: 'Ringkasan Kas', icon: LayoutDashboard },
+    { id: 'matrix', label: 'Buku Matriks', icon: Grid3X3 },
     {
       id: 'payments',
       label: 'Catatan Iuran',
@@ -45,11 +49,25 @@ export const Header: React.FC<HeaderProps> = ({
       badge: pendingVerificationCount > 0 ? pendingVerificationCount : undefined,
     },
     { id: 'other_incomes', label: 'Pendapatan Lain', icon: Coins },
-    { id: 'matrix', label: 'Buku Matriks', icon: Grid3X3 },
-    { id: 'residents', label: 'Data Warga', icon: Users },
     { id: 'expenses', label: 'Pengeluaran', icon: WalletCards },
+    { id: 'residents', label: 'Data Warga', icon: Users },
     { id: 'settings', label: 'Pengaturan', icon: SettingsIcon },
   ];
+
+  const wargaNavItems = [
+    { id: 'dashboard', label: 'Ringkasan Kas', icon: LayoutDashboard },
+    { id: 'matrix', label: 'Buku Matriks', icon: Grid3X3 },
+    {
+      id: 'payments',
+      label: 'Catatan Iuran',
+      icon: Receipt,
+      badge: pendingVerificationCount > 0 ? pendingVerificationCount : undefined,
+    },
+    { id: 'other_incomes', label: 'Pendapatan Lain', icon: Coins },
+    { id: 'expenses', label: 'Pengeluaran', icon: WalletCards },
+  ];
+
+  const navItems = userRole === 'admin' ? adminNavItems : wargaNavItems;
 
   const isCloud = dbInfo?.mode === 'firestore';
 
@@ -84,7 +102,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Role Switcher */}
+        {/* Role Switcher & Keluar */}
         <div className="flex items-center space-x-2.5 self-start md:self-auto flex-wrap gap-y-2">
           {userRole === 'admin' ? (
             <div className="flex items-center space-x-2 bg-indigo-50/80 border border-indigo-200/80 p-1 pl-3 rounded-lg">
@@ -113,6 +131,17 @@ export const Header: React.FC<HeaderProps> = ({
                 <span>Masuk Admin</span>
               </button>
             </div>
+          )}
+
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              title="Kunci / Keluar dari Aplikasi"
+              className="flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-lg transition"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Keluar</span>
+            </button>
           )}
         </div>
       </div>

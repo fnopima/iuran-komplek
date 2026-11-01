@@ -319,7 +319,7 @@ Pengurus & Bendahara ${formData.rtRw}`;
                 <input
                   type="number"
                   disabled={userRole !== 'admin'}
-                  min={1000}
+                  min={10000}
                   step={5000}
                   value={formData.defaultMonthlyFee}
                   onChange={(e) => setFormData({ ...formData, defaultMonthlyFee: Number(e.target.value) })}
@@ -374,9 +374,9 @@ Pengurus & Bendahara ${formData.rtRw}`;
               </div>
             </div>
 
-            {/* Kontak & PIN Admin */}
+            {/* Kontak Pengurus */}
             <div className="pt-3 border-t border-slate-100">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Nama Bendahara / Pengurus
@@ -402,20 +402,63 @@ Pengurus & Bendahara ${formData.rtRw}`;
                     className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono disabled:bg-slate-50"
                   />
                 </div>
+              </div>
+            </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                    <Lock className="w-3.5 h-3.5 text-slate-500" />
-                    <span>PIN Keamanan Admin</span>
-                  </label>
+            {/* Keamanan & Akses Masuk Aplikasi */}
+            <div className="pt-3 border-t border-slate-100">
+              <div className="flex items-center space-x-2 mb-3">
+                <Lock className="w-4 h-4 text-indigo-600" />
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Keamanan & Akses Masuk Aplikasi
+                </h4>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-3.5 rounded-xl bg-indigo-50/60 border border-indigo-100">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-indigo-600" />
+                      Password Warga Komplek
+                    </label>
+                    <span className="text-[10px] font-medium text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded border border-indigo-200">
+                      Default: andara
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    disabled={userRole !== 'admin'}
+                    value={formData.wargaPassword ?? 'andara'}
+                    onChange={(e) => setFormData({ ...formData, wargaPassword: e.target.value })}
+                    placeholder="andara"
+                    className="w-full px-3 py-2 text-xs font-medium rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1.5">
+                    Password wajib yang dimasukkan oleh warga saat akan masuk & membuka aplikasi.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      PIN Keamanan Admin
+                    </label>
+                    <span className="text-[10px] font-medium text-slate-700 bg-slate-200/70 px-2 py-0.5 rounded border border-slate-300">
+                      Default: 1234
+                    </span>
+                  </div>
                   <input
                     type="text"
                     disabled={userRole !== 'admin'}
                     maxLength={6}
                     value={formData.adminPin}
                     onChange={(e) => setFormData({ ...formData, adminPin: e.target.value })}
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-center tracking-widest disabled:bg-slate-50"
+                    className="w-full px-3 py-2 text-xs font-mono font-medium rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50 tracking-wider"
                   />
+                  <p className="text-[11px] text-slate-500 mt-1.5">
+                    PIN 4–6 digit khusus pengurus/bendahara untuk akses penuh & pengelolaan.
+                  </p>
                 </div>
               </div>
             </div>

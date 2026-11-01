@@ -82,6 +82,7 @@
         "rtRw": { "type": "string" },
         "defaultMonthlyFee": { "type": "number" },
         "adminPin": { "type": "string" },
+        "wargaPassword": { "type": "string", "description": "Password akses masuk untuk warga komplek" },
         "treasurerName": { "type": "string" },
         "bankAccount": { "type": "string" },
         "announcement": { "type": "string" }

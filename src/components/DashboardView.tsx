@@ -91,7 +91,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           <div className="flex-1">
             <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider">
-              Pengumuman Pengurus {settings.rtRw}
+              Pengumuman Pengurus Paguyuban Komplek
             </h4>
             <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">{settings.announcement}</p>
           </div>
@@ -297,8 +297,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Grid for Recent Transactions & Unpaid List */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Grid for Recent Transactions & Unpaid List (Unpaid list only visible for admin) */}
+      <div className={`grid grid-cols-1 ${userRole === 'admin' ? 'lg:grid-cols-2' : ''} gap-6`}>
         {/* Transaksi Terkini */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -358,56 +358,58 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Status Menunggak Bulan Ini */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-slate-800">
-                Belum Bayar Bulan Ini ({formatPeriodMonth(currentPeriod).split(' ')[0]})
-              </h3>
-              <p className="text-xs text-slate-500">Daftar rumah berpenghuni yang belum lunas</p>
-            </div>
-            <button
-              onClick={() => onNavigateTab('matrix')}
-              className="text-indigo-600 text-xs font-semibold hover:text-indigo-700"
-            >
-              Cek Buku Matriks
-            </button>
-          </div>
-
-          <div className="p-4 space-y-2.5 flex-1">
-            {unpaidResidents.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-2" />
-                <p className="text-xs font-bold text-slate-800">Luar Biasa!</p>
-                <p className="text-xs text-slate-500">Semua warga telah melunasi iuran bulan ini.</p>
+        {/* Status Menunggak Bulan Ini - Hanya untuk Admin */}
+        {userRole === 'admin' && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-slate-800">
+                  Belum Bayar Bulan Ini ({formatPeriodMonth(currentPeriod).split(' ')[0]})
+                </h3>
+                <p className="text-xs text-slate-500">Daftar rumah berpenghuni yang belum lunas</p>
               </div>
-            ) : (
-              unpaidResidents.map((res) => (
-                <div
-                  key={res.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-rose-50/50 border border-rose-100/80"
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 rounded bg-rose-100 text-rose-700 flex items-center justify-center text-xs font-bold">
-                      <Clock className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-900">{res.houseNumber}</p>
-                      <p className="text-[11px] text-slate-600">{res.headOfFamily}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-bold text-rose-600">
-                      {formatRupiah(settings.defaultMonthlyFee)}
-                    </span>
-                    <p className="text-[10px] text-slate-400">Belum Bayar</p>
-                  </div>
+              <button
+                onClick={() => onNavigateTab('matrix')}
+                className="text-indigo-600 text-xs font-semibold hover:text-indigo-700"
+              >
+                Cek Buku Matriks
+              </button>
+            </div>
+
+            <div className="p-4 space-y-2.5 flex-1">
+              {unpaidResidents.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-2" />
+                  <p className="text-xs font-bold text-slate-800">Luar Biasa!</p>
+                  <p className="text-xs text-slate-500">Semua warga telah melunasi iuran bulan ini.</p>
                 </div>
-              ))
-            )}
+              ) : (
+                unpaidResidents.map((res) => (
+                  <div
+                    key={res.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-rose-50/50 border border-rose-100/80"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 rounded bg-rose-100 text-rose-700 flex items-center justify-center text-xs font-bold">
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-900">{res.houseNumber}</p>
+                        <p className="text-[11px] text-slate-600">{res.headOfFamily}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-bold text-rose-600">
+                        {formatRupiah(settings.defaultMonthlyFee)}
+                      </span>
+                      <p className="text-[10px] text-slate-400">Belum Bayar</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -208,7 +208,12 @@ function sanitizeAndLoadLocalStorage(): void {
   const rawOtherIncomes = readLocal<OtherIncome[]>(STORAGE_KEYS.OTHER_INCOMES, []);
   currentOtherIncomes = rawOtherIncomes;
 
-  currentSettings = readLocal<AppSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS);
+  const rawSettings = readLocal<AppSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS);
+  currentSettings = {
+    ...DEFAULT_SETTINGS,
+    ...rawSettings,
+    wargaPassword: rawSettings.wargaPassword || DEFAULT_SETTINGS.wargaPassword || 'andara',
+  };
 }
 
 // Initialize Database system
@@ -253,7 +258,12 @@ export async function initializeDatabase(): Promise<void> {
       doc(db, 'settings', 'general'),
       (snap) => {
         if (snap.exists()) {
-          currentSettings = snap.data() as AppSettings;
+          const rawData = snap.data() as AppSettings;
+          currentSettings = {
+            ...DEFAULT_SETTINGS,
+            ...rawData,
+            wargaPassword: rawData.wargaPassword || DEFAULT_SETTINGS.wargaPassword || 'andara',
+          };
           writeLocal(STORAGE_KEYS.SETTINGS, currentSettings);
           notifySettings();
         } else {

@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   subDistrict: 'Kelurahan Setempat',
   defaultMonthlyFee: 50000,
   adminPin: '1234',
+  wargaPassword: 'andara',
   treasurerName: 'Bendahara RT',
   treasurerPhone: '',
   bankName: 'BCA / Mandiri / BRI',

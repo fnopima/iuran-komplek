@@ -71,6 +71,7 @@ export interface AppSettings {
   subDistrict: string; // e.g. "Kelurahan Sukamaju"
   defaultMonthlyFee: number; // e.g. 100000
   adminPin: string; // e.g. "1234"
+  wargaPassword?: string; // e.g. "andara" (default: "andara")
   treasurerName: string; // e.g. "Bpk. Budi Santoso (Bendahara)"
   treasurerPhone: string;
   bankName: string; // e.g. "BCA"
