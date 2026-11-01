@@ -52,10 +52,14 @@ export const NewOtherIncomeModal: React.FC<NewOtherIncomeModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  if (!isOpen) return null;
+  if (!isOpen || userRole !== 'admin') return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (userRole !== 'admin') {
+      alert('Hanya admin yang berwenang mencatat pendapatan.');
+      return;
+    }
     if (!title.trim()) {
       alert('Mohon isi nama/judul penerimaan pendapatan.');
       return;

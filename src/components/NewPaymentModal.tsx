@@ -1,15 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { X, PlusCircle, AlertCircle } from 'lucide-react';
 import { addPayment } from '../lib/database';
 import confetti from 'canvas-confetti';
 import type { Resident, AppSettings, PaymentMethod } from '../types';
-import { getCurrentPeriodMonth, generateReceiptNumber } from '../lib/formatters';
+import {
+  getCurrentPeriodMonth,
+  generateReceiptNumber,
+  getAvailablePeriodMonths,
+  formatPeriodMonth,
+} from '../lib/formatters';
 
 interface NewPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   residents: Resident[];
   settings: AppSettings;
+  initialResidentId?: string;
+  initialPeriodMonth?: string;
   onSuccess: () => void;
 }
 
@@ -18,10 +25,12 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
   onClose,
   residents,
   settings,
+  initialResidentId,
+  initialPeriodMonth,
   onSuccess,
 }) => {
-  const [residentId, setResidentId] = useState('');
-  const [periodMonth, setPeriodMonth] = useState(getCurrentPeriodMonth());
+  const [residentId, setResidentId] = useState(initialResidentId || '');
+  const [periodMonth, setPeriodMonth] = useState(initialPeriodMonth || getCurrentPeriodMonth());
   const [amount, setAmount] = useState(settings.defaultMonthlyFee || 125000);
   const [feeType, setFeeType] = useState('Iuran Wajib (Keamanan & Kebersihan)');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('transfer');
@@ -29,6 +38,24 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialResidentId) setResidentId(initialResidentId);
+      if (initialPeriodMonth) setPeriodMonth(initialPeriodMonth);
+    }
+  }, [isOpen, initialResidentId, initialPeriodMonth]);
+
+  const periodOptions = useMemo(() => {
+    const list = getAvailablePeriodMonths(2, 1);
+    if (periodMonth && !list.some((item) => item.value === periodMonth)) {
+      list.unshift({
+        value: periodMonth,
+        label: formatPeriodMonth(periodMonth),
+      });
+    }
+    return list;
+  }, [periodMonth]);
 
   if (!isOpen) return null;
 
@@ -141,13 +168,18 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Bulan Periode *
               </label>
-              <input
-                type="month"
+              <select
                 value={periodMonth}
                 onChange={(e) => setPeriodMonth(e.target.value)}
                 required
-                className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+                className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                {periodOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -172,7 +204,7 @@ export const NewPaymentModal: React.FC<NewPaymentModalProps> = ({
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(Number(e.target.value))}
-                min={1000}
+                min={0}
                 step={5000}
                 required
                 className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"

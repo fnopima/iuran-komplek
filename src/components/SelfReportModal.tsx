@@ -1,8 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { X, Send, Upload, CheckCircle2, AlertCircle, Building2 } from 'lucide-react';
 import { addPayment } from '../lib/database';
 import type { Resident, AppSettings } from '../types';
-import { formatRupiah, getCurrentPeriodMonth, generateReceiptNumber } from '../lib/formatters';
+import {
+  formatRupiah,
+  getCurrentPeriodMonth,
+  generateReceiptNumber,
+  getAvailablePeriodMonths,
+  formatPeriodMonth,
+} from '../lib/formatters';
 
 interface SelfReportModalProps {
   isOpen: boolean;
@@ -27,6 +33,17 @@ export const SelfReportModal: React.FC<SelfReportModalProps> = ({
   const [proofImage, setProofImage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const periodOptions = useMemo(() => {
+    const list = getAvailablePeriodMonths(1, 1);
+    if (periodMonth && !list.some((item) => item.value === periodMonth)) {
+      list.unshift({
+        value: periodMonth,
+        label: formatPeriodMonth(periodMonth),
+      });
+    }
+    return list;
+  }, [periodMonth]);
 
   if (!isOpen) return null;
 
@@ -156,13 +173,18 @@ export const SelfReportModal: React.FC<SelfReportModalProps> = ({
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Bulan Iuran *
               </label>
-              <input
-                type="month"
+              <select
                 value={periodMonth}
                 onChange={(e) => setPeriodMonth(e.target.value)}
                 required
-                className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+                className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              >
+                {periodOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">

@@ -66,3 +66,32 @@ export function formatDateIndo(dateStr: string): string {
     return dateStr;
   }
 }
+
+export function getAvailablePeriodMonths(rangeYearsBack = 1, rangeYearsForward = 1): { value: string; label: string }[] {
+  const current = new Date();
+  const currentYear = current.getFullYear();
+  const options: { value: string; label: string }[] = [];
+
+  for (let y = currentYear + rangeYearsForward; y >= currentYear - rangeYearsBack; y--) {
+    for (let m = 12; m >= 1; m--) {
+      const monthStr = String(m).padStart(2, '0');
+      const val = `${y}-${monthStr}`;
+      options.push({
+        value: val,
+        label: `${INDONESIAN_MONTHS[m - 1]} ${y}`,
+      });
+    }
+  }
+  return options;
+}
+
+export function formatPhoneNumberForWhatsApp(phone: string): string {
+  if (!phone) return '';
+  let clean = phone.replace(/\D/g, '');
+  if (clean.startsWith('0')) {
+    clean = '62' + clean.slice(1);
+  } else if (clean.startsWith('8')) {
+    clean = '62' + clean;
+  }
+  return clean;
+}

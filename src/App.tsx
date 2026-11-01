@@ -58,6 +58,8 @@ export default function App() {
 
   // Modals
   const [isNewPaymentOpen, setIsNewPaymentOpen] = useState(false);
+  const [quickPayResidentId, setQuickPayResidentId] = useState('');
+  const [quickPayPeriodMonth, setQuickPayPeriodMonth] = useState('');
   const [isNewOtherIncomeOpen, setIsNewOtherIncomeOpen] = useState(false);
   const [isSelfReportOpen, setIsSelfReportOpen] = useState(false);
   const [isAdminPinOpen, setIsAdminPinOpen] = useState(false);
@@ -150,7 +152,11 @@ export default function App() {
                 userRole={userRole}
                 onNavigateTab={(tab) => setCurrentTab(tab)}
                 onOpenSelfReport={() => setIsSelfReportOpen(true)}
-                onOpenNewPayment={() => setIsNewPaymentOpen(true)}
+                onOpenNewPayment={() => {
+                  setQuickPayResidentId('');
+                  setQuickPayPeriodMonth('');
+                  setIsNewPaymentOpen(true);
+                }}
                 onOpenNewOtherIncome={() => setIsNewOtherIncomeOpen(true)}
               />
             )}
@@ -161,7 +167,11 @@ export default function App() {
                 residents={residents}
                 settings={settings}
                 userRole={userRole}
-                onOpenNewPayment={() => setIsNewPaymentOpen(true)}
+                onOpenNewPayment={() => {
+                  setQuickPayResidentId('');
+                  setQuickPayPeriodMonth('');
+                  setIsNewPaymentOpen(true);
+                }}
                 onOpenSelfReport={() => setIsSelfReportOpen(true)}
                 onViewReceipt={(payment) => setReceiptPayment(payment)}
               />
@@ -172,7 +182,11 @@ export default function App() {
                 otherIncomes={otherIncomes}
                 userRole={userRole}
                 settings={settings}
-                onOpenNewIncomeModal={() => setIsNewOtherIncomeOpen(true)}
+                onOpenNewIncomeModal={() => {
+                  if (userRole === 'admin') {
+                    setIsNewOtherIncomeOpen(true);
+                  }
+                }}
               />
             )}
 
@@ -183,6 +197,8 @@ export default function App() {
                 settings={settings}
                 userRole={userRole}
                 onQuickPay={(resident, periodMonth) => {
+                  setQuickPayResidentId(resident.id);
+                  setQuickPayPeriodMonth(periodMonth);
                   setIsNewPaymentOpen(true);
                 }}
                 onViewReceipt={(payment) => setReceiptPayment(payment)}
@@ -257,27 +273,38 @@ export default function App() {
       <ReceiptModal
         payment={receiptPayment}
         settings={settings}
+        residents={residents}
         onClose={() => setReceiptPayment(null)}
       />
 
       <NewPaymentModal
         isOpen={isNewPaymentOpen}
-        onClose={() => setIsNewPaymentOpen(false)}
+        onClose={() => {
+          setIsNewPaymentOpen(false);
+          setQuickPayResidentId('');
+          setQuickPayPeriodMonth('');
+        }}
         residents={residents}
         settings={settings}
+        initialResidentId={quickPayResidentId}
+        initialPeriodMonth={quickPayPeriodMonth}
         onSuccess={() => {
           setIsNewPaymentOpen(false);
+          setQuickPayResidentId('');
+          setQuickPayPeriodMonth('');
         }}
       />
 
-      <NewOtherIncomeModal
-        isOpen={isNewOtherIncomeOpen}
-        onClose={() => setIsNewOtherIncomeOpen(false)}
-        userRole={userRole}
-        onSuccess={() => {
-          setIsNewOtherIncomeOpen(false);
-        }}
-      />
+      {userRole === 'admin' && (
+        <NewOtherIncomeModal
+          isOpen={isNewOtherIncomeOpen}
+          onClose={() => setIsNewOtherIncomeOpen(false)}
+          userRole={userRole}
+          onSuccess={() => {
+            setIsNewOtherIncomeOpen(false);
+          }}
+        />
+      )}
 
       <SelfReportModal
         isOpen={isSelfReportOpen}

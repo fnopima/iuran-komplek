@@ -299,8 +299,8 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                   <input
                     type="number"
                     required
-                    min={1000}
-                    step={5000}
+                    min={0}
+                    step={0}
                     value={amount}
                     onChange={(e) => setAmount(Number(e.target.value))}
                     className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono"

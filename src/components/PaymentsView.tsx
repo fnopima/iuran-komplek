@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Search,
   Plus,
@@ -13,7 +13,13 @@ import {
 } from 'lucide-react';
 import { updatePayment, deletePayment } from '../lib/database';
 import type { Payment, Resident, AppSettings, UserRole, PaymentStatus } from '../types';
-import { formatRupiah, formatPeriodMonth, formatDateIndo, getCurrentPeriodMonth } from '../lib/formatters';
+import {
+  formatRupiah,
+  formatPeriodMonth,
+  formatDateIndo,
+  getCurrentPeriodMonth,
+  getAvailablePeriodMonths,
+} from '../lib/formatters';
 
 interface PaymentsViewProps {
   payments: Payment[];
@@ -38,6 +44,21 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   const [selectedMonth, setSelectedMonth] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | PaymentStatus>('all');
   const [previewProofUrl, setPreviewProofUrl] = useState<string | null>(null);
+
+  const availableMonths = useMemo(() => {
+    const set = new Set<string>();
+    payments.forEach((p) => {
+      if (p.periodMonth) set.add(p.periodMonth);
+    });
+    getAvailablePeriodMonths(1, 0).forEach((m) => set.add(m.value));
+    return Array.from(set)
+      .sort()
+      .reverse()
+      .map((val) => ({
+        value: val,
+        label: formatPeriodMonth(val),
+      }));
+  }, [payments]);
 
   // Filter payments
   const filteredPayments = payments.filter((p) => {
@@ -161,19 +182,26 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           </div>
 
           <div className="flex items-center space-x-2">
-            <input
-              type="month"
+            <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-            />
+            >
+              <option value="">Semua Periode Bulan</option>
+              {availableMonths.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
 
             {selectedMonth && (
               <button
+                type="button"
                 onClick={() => setSelectedMonth('')}
-                className="px-2.5 py-2 text-xs text-slate-500 hover:text-slate-800 bg-slate-100 rounded-lg"
+                className="px-2.5 py-2 text-xs text-slate-500 hover:text-slate-800 bg-slate-100 rounded-lg transition"
               >
-                Semua Bulan
+                Reset
               </button>
             )}
           </div>
