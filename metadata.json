@@ -1,0 +1,6 @@
+{
+  "name": "Pencatatan Iuran Komplek",
+  "description": "Aplikasi pencatatan iuran warga komplek perumahan (RT/RW) dengan manajemen kas, status pembayaran warga, dan peran Admin serta Warga.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
