@@ -30,7 +30,7 @@ const QUICK_TITLES = [
   'Bantuan Dana CSR Perusahaan',
   'Sponsorship Kegiatan 17 Agustus',
   'Sewa Tenda & Kursi Inventaris RT',
-  'Infaq / Sedekah Warga untuk Kas RT',
+  'Infaq / Sedekah Warga untuk Kas Paguyuban Komplek',
 ];
 
 export const NewOtherIncomeModal: React.FC<NewOtherIncomeModalProps> = ({
@@ -144,7 +144,7 @@ export const NewOtherIncomeModal: React.FC<NewOtherIncomeModalProps> = ({
             </div>
             <h4 className="text-lg font-bold text-slate-900">Pendapatan Berhasil Dicatat!</h4>
             <p className="text-xs text-slate-500 max-w-xs">
-              Penerimaan sebesar <span className="font-semibold text-emerald-700">{formatRupiah(Number(amount))}</span> telah masuk ke saldo kas RT.
+              Penerimaan sebesar <span className="font-semibold text-emerald-700">{formatRupiah(Number(amount))}</span> telah masuk ke saldo kas Paguyuban Komplek.
             </p>
           </div>
         ) : (

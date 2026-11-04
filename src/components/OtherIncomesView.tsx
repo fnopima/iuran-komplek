@@ -168,7 +168,7 @@ export const OtherIncomesView: React.FC<OtherIncomesViewProps> = ({
             100% Transparan & Riil
           </div>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Otomatis terhitung pada Saldo Kas Keseluruhan RT
+            Otomatis terhitung pada Saldo Kas Keseluruhan Paguyuban Komplek
           </p>
         </div>
       </div>
@@ -365,7 +365,7 @@ export const OtherIncomesView: React.FC<OtherIncomesViewProps> = ({
                   {settings.rtRw} • {settings.subDistrict}
                 </p>
                 <div className="inline-block mt-2 px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[11px] font-bold uppercase rounded">
-                  Kuitansi Pendapatan Kas RT
+                  Kuitansi Pendapatan Kas Paguyuban Komplek
                 </div>
               </div>
 
@@ -419,7 +419,7 @@ export const OtherIncomesView: React.FC<OtherIncomesViewProps> = ({
                   <p className="font-semibold text-slate-800 mt-6">{activeReceipt.payerName}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-slate-400">Penerima (Kas RT):</p>
+                  <p className="text-slate-400">Penerima (Kas Paguyuban Komplek):</p>
                   <p className="font-semibold text-slate-800 mt-6">
                     {settings.treasurerName || 'Bendahara RT'}
                   </p>

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Settings as SettingsIcon,
   Save,
@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Trash2,
+  Plus,
 } from 'lucide-react';
 import {
   updateAppSettings,
@@ -55,6 +56,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [dbNotice, setDbNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isResetting, setIsResetting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [announcementItems, setAnnouncementItems] = useState<string[]>(() => {
+    const list = (settings.announcement || '')
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return list.length > 0 ? list : [''];
+  });
+
+  useEffect(() => {
+    setFormData(settings);
+    const list = (settings.announcement || '')
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    setAnnouncementItems(list.length > 0 ? list : ['']);
+  }, [settings]);
+
+  const updateAnnouncementItem = (index: number, value: string) => {
+    const updated = [...announcementItems];
+    updated[index] = value;
+    setAnnouncementItems(updated);
+    setFormData((prev) => ({
+      ...prev,
+      announcement: updated.map((s) => s.trim()).filter(Boolean).join('\n'),
+    }));
+  };
+
+  const addAnnouncementItem = () => {
+    setAnnouncementItems((prev) => [...prev, '']);
+  };
+
+  const removeAnnouncementItem = (index: number) => {
+    const updated = announcementItems.filter((_, idx) => idx !== index);
+    const result = updated.length > 0 ? updated : [''];
+    setAnnouncementItems(result);
+    setFormData((prev) => ({
+      ...prev,
+      announcement: result.map((s) => s.trim()).filter(Boolean).join('\n'),
+    }));
+  };
 
   const currentPeriod = getCurrentPeriodMonth();
 
@@ -184,10 +226,10 @@ Periode: ${formatPeriodMonth(currentPeriod)}
 ${monthOther > 0 ? `• Pendapatan Lain: ${formatRupiah(monthOther)}\n• Total Pemasukan: ${formatRupiah(monthTotalIncome)}\n` : ''}• Pengeluaran Kas: ${formatRupiah(monthExpense)}
 • Warga Lunas: ${paidHouses.size} dari ${occupiedCount} Rumah (${Math.round((paidHouses.size / occupiedCount) * 100)}%)
 
-💵 *TOTAL SALDO KAS RT SAAT INI:*
+💵 *TOTAL SALDO KAS PAGUYUBAN KOMPLEK SAAT INI:*
 👉 *${formatRupiah(balance)}*
 ================================
-💳 *REKENING KAS IURAN RT:*
+💳 *REKENING KAS PAGUYUBAN KOMPLEK:*
 Bank: ${formData.bankName}
 No. Rekening: ${formData.bankAccount}
 Atas Nama: ${formData.bankHolder}
@@ -328,12 +370,12 @@ Pengurus & Bendahara ${formData.rtRw}`;
               </div>
             </div>
 
-            {/* Rekening Kas RT */}
+            {/* Rekening Kas Paguyuban Komplek */}
             <div className="pt-3 border-t border-slate-100">
               <div className="flex items-center space-x-2 mb-3">
                 <CreditCard className="w-4 h-4 text-indigo-600" />
                 <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  Rekening Bank Penerimaan Kas RT
+                  Rekening Bank Penerimaan Kas Paguyuban Komplek
                 </h4>
               </div>
 
@@ -463,20 +505,74 @@ Pengurus & Bendahara ${formData.rtRw}`;
               </div>
             </div>
 
-            {/* Pengumuman RT */}
-            <div className="pt-3 border-t border-slate-100">
-              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                <Megaphone className="w-3.5 h-3.5 text-amber-600" />
-                <span>Pengumuman / Agenda Komplek (Tampil di Dashboard)</span>
-              </label>
-              <textarea
-                rows={2}
-                disabled={userRole !== 'admin'}
-                value={formData.announcement}
-                onChange={(e) => setFormData({ ...formData, announcement: e.target.value })}
-                placeholder="Tulis pengumuman kegiatan warga, gotong royong, fogging, dll..."
-                className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-50"
-              />
+            {/* Pengumuman Pengurus Paguyuban Komplek */}
+            <div className="pt-4 border-t border-slate-100 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Megaphone className="w-4 h-4 text-amber-600" />
+                    <span>Pengumuman Pengurus Paguyuban Komplek (Tampil di Dashboard)</span>
+                  </label>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Admin dapat memasukkan beberapa pengumuman berbeda. Masing-masing pengumuman akan ditampilkan dalam baris terpisah pada dashboard.
+                  </p>
+                </div>
+                {userRole === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={addAnnouncementItem}
+                    className="inline-flex items-center space-x-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg transition shrink-0 self-start sm:self-auto"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Tambah Baris Pengumuman</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-2.5">
+                {announcementItems.map((item, index) => (
+                  <div key={index} className="flex items-start space-x-2.5 bg-slate-50/70 p-2.5 rounded-xl border border-slate-200/80">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-amber-100 text-amber-900 font-bold text-xs shrink-0 mt-0.5">
+                      {index + 1}
+                    </span>
+                    <div className="flex-1">
+                      <textarea
+                        rows={2}
+                        disabled={userRole !== 'admin'}
+                        value={item}
+                        onChange={(e) => updateAnnouncementItem(index, e.target.value)}
+                        placeholder={`Pengumuman baris ke-${index + 1} (misal: Jadwal gotong royong Minggu pkl 07.00, atau Jadwal ronda malam)...`}
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:bg-slate-50 leading-relaxed"
+                      />
+                    </div>
+                    {userRole === 'admin' && announcementItems.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeAnnouncementItem(index)}
+                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition shrink-0 mt-0.5"
+                        title="Hapus baris pengumuman ini"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {userRole === 'admin' && (
+                <div className="flex justify-between items-center pt-1 text-[11px] text-slate-500">
+                  <span>
+                    {announcementItems.filter((s) => s.trim()).length} pengumuman aktif tersimpan
+                  </span>
+                  <button
+                    type="button"
+                    onClick={addAnnouncementItem}
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                  >
+                    + Tambah Pengumuman Lain
+                  </button>
+                </div>
+              )}
             </div>
 
             {userRole === 'admin' && (
@@ -543,7 +639,7 @@ Pengurus & Bendahara ${formData.rtRw}`;
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                Ajakan pembayaran bulan berjalan lengkap dengan nomor rekening kas RT.
+                Ajakan pembayaran bulan berjalan lengkap dengan nomor rekening kas Paguyuban Komplek.
               </p>
               <div className="flex space-x-2 pt-1">
                 <button

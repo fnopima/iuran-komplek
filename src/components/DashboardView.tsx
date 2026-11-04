@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Wallet,
   ArrowUpRight,
@@ -11,9 +11,11 @@ import {
   PlusCircle,
   FileSpreadsheet,
   Coins,
+  QrCode,
 } from 'lucide-react';
 import type { Payment, Expense, Resident, AppSettings, UserRole, ActiveTab, OtherIncome } from '../types';
 import { formatRupiah, formatPeriodMonth, getCurrentPeriodMonth, formatDateIndo } from '../lib/formatters';
+import { QrisModal } from './QrisModal';
 
 interface DashboardViewProps {
   payments: Payment[];
@@ -40,6 +42,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenNewPayment,
   onOpenNewOtherIncome,
 }) => {
+  const [isQrisModalOpen, setIsQrisModalOpen] = useState(false);
   const currentPeriod = getCurrentPeriodMonth();
 
   // Financial calculations
@@ -81,19 +84,47 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     .filter((r) => r.occupancyStatus === 'dihuni' && !paidHouseIds.has(r.houseNumber))
     .slice(0, 6);
 
+  // Split multiple announcements into separate items
+  const announcementList = (settings.announcement || '')
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   return (
     <div className="space-y-6">
       {/* Announcement Banner */}
-      {settings.announcement && (
-        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200/90 shadow-xs flex items-start space-x-3">
-          <div className="p-2 rounded-lg bg-amber-100 text-amber-800 flex-shrink-0">
-            <Megaphone className="w-5 h-5" />
+      {announcementList.length > 0 && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/95 border border-amber-200/90 shadow-xs">
+          <div className="flex items-center space-x-2.5 pb-2.5 border-b border-amber-200/70">
+            <div className="p-2 rounded-xl bg-amber-100 text-amber-800 flex-shrink-0">
+              <Megaphone className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+                Pengumuman Pengurus Paguyuban Komplek
+              </h4>
+              <p className="text-[11px] text-amber-800 font-medium">
+                {announcementList.length > 1
+                  ? `${announcementList.length} pengumuman & agenda komplek untuk warga`
+                  : 'Informasi dan agenda aktif untuk warga'}
+              </p>
+            </div>
           </div>
-          <div className="flex-1">
-            <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider">
-              Pengumuman Pengurus Paguyuban Komplek
-            </h4>
-            <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">{settings.announcement}</p>
+
+          <div className="mt-3 space-y-2">
+            {announcementList.map((item, index) => (
+              <div
+                key={index}
+                className="flex items-start space-x-3 p-3 rounded-xl bg-white/95 border border-amber-200/80 shadow-2xs"
+              >
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-amber-200 text-amber-950 font-bold text-xs shrink-0 mt-0.5">
+                  {index + 1}
+                </span>
+                <p className="flex-1 text-xs text-amber-950 font-medium leading-relaxed whitespace-pre-wrap">
+                  {item}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -104,7 +135,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-slate-500">Saldo Kas RT</p>
+              <p className="text-sm font-medium text-slate-500">Saldo Kas Paguyuban Komplek</p>
               <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
                 <Wallet className="w-5 h-5" />
               </div>
@@ -202,7 +233,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <p className="text-xs text-slate-600 mt-1 leading-relaxed">
               {userRole === 'admin'
                 ? 'Input penerimaan iuran tunai/transfer, terbitkan kuitansi digital resmi, dan verifikasi konfirmasi transfer warga.'
-                : 'Sudah transfer iuran bulan ini? Laporkan bukti transfer untuk mendapatkan kuitansi digital resmi RT.'}
+                : 'Bayar iuran mudah melalui QRIS atau transfer bank resmi paguyuban, lalu konfirmasi untuk kuitansi resmi.'}
             </p>
           </div>
 
@@ -226,6 +257,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </button>
                 )}
                 <button
+                  type="button"
+                  onClick={() => setIsQrisModalOpen(true)}
+                  className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition"
+                >
+                  <QrCode className="w-4 h-4 text-red-600" />
+                  <span>QRIS Kas Paguyuban</span>
+                </button>
+                <button
                   onClick={() => onNavigateTab('matrix')}
                   className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition"
                 >
@@ -235,6 +274,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </>
             ) : (
               <>
+                <button
+                  type="button"
+                  onClick={() => setIsQrisModalOpen(true)}
+                  className="bg-red-600 hover:bg-red-700 active:bg-red-800 text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 shadow-xs transition"
+                >
+                  <QrCode className="w-4 h-4" />
+                  <span>Scan / Unduh QRIS</span>
+                </button>
                 <button
                   onClick={onOpenSelfReport}
                   className="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 shadow-xs transition"
@@ -266,8 +313,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             <div className="mt-4 space-y-2 text-xs">
+              {/* Highlight QRIS Paguyuban */}
+              <div className="p-2.5 rounded-lg bg-gradient-to-r from-red-50 via-rose-50 to-amber-50 border border-red-200/90 flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 rounded-lg bg-red-600 text-white shadow-xs">
+                    <QrCode className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-900 block text-xs">
+                      QRIS Paguyuban Griya Andara
+                    </span>
+                    <span className="text-[11px] text-slate-600">
+                      NMID: ID1026631092354 (BCA, Mandiri, BRI, GoPay, OVO, dll)
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsQrisModalOpen(true)}
+                  className="bg-red-600 hover:bg-red-700 active:bg-red-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-xs flex items-center space-x-1.5 transition shrink-0 ml-2"
+                >
+                  <QrCode className="w-3.5 h-3.5" />
+                  <span>Buka / Unduh</span>
+                </button>
+              </div>
+
               <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Rekening Kas RT:</span>
+                <span className="text-slate-500">Rekening Kas Paguyuban Komplek:</span>
                 <span className="font-semibold text-slate-800">
                   {settings.bankName} - <span className="font-mono text-indigo-600">{settings.bankAccount}</span>
                 </span>
@@ -277,7 +349,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span className="font-medium text-slate-800">{settings.bankHolder}</span>
               </div>
               <div className="flex justify-between py-1">
-                <span className="text-slate-500">Kontak Bendahara RT:</span>
+                <span className="text-slate-500">Kontak Bendahara Paguyuban: </span>
                 <span className="font-medium text-slate-800">
                   {settings.treasurerName} ({settings.treasurerPhone})
                 </span>
@@ -411,6 +483,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* QRIS Modal */}
+      <QrisModal
+        isOpen={isQrisModalOpen}
+        onClose={() => setIsQrisModalOpen(false)}
+        onOpenSelfReport={onOpenSelfReport}
+      />
     </div>
   );
 };

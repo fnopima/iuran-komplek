@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { X, Send, Upload, CheckCircle2, AlertCircle, Building2 } from 'lucide-react';
+import { X, Send, Upload, CheckCircle2, AlertCircle, Building2, QrCode } from 'lucide-react';
 import { addPayment } from '../lib/database';
 import type { Resident, AppSettings } from '../types';
 import {
@@ -9,6 +9,7 @@ import {
   getAvailablePeriodMonths,
   formatPeriodMonth,
 } from '../lib/formatters';
+import { QrisModal } from './QrisModal';
 
 interface SelfReportModalProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ export const SelfReportModal: React.FC<SelfReportModalProps> = ({
   settings,
   onSuccess,
 }) => {
+  const [showQris, setShowQris] = useState(false);
   const [selectedResidentId, setSelectedResidentId] = useState('');
   const [periodMonth, setPeriodMonth] = useState(getCurrentPeriodMonth());
   const [amount, setAmount] = useState(settings.defaultMonthlyFee || 125000);
@@ -131,9 +133,19 @@ export const SelfReportModal: React.FC<SelfReportModalProps> = ({
 
         {/* Bank Account Info Box */}
         <div className="mt-4 p-3.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
-          <div className="flex items-center space-x-2 text-slate-600 font-medium mb-1">
-            <Building2 className="w-4 h-4 text-indigo-600" />
-            <span>Rekening Resmi Kas RT</span>
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center space-x-2 text-slate-700 font-medium">
+              <Building2 className="w-4 h-4 text-indigo-600" />
+              <span>Rekening Kas Paguyuban Komplek</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowQris(true)}
+              className="inline-flex items-center space-x-1 text-[11px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-2 py-0.5 rounded transition"
+            >
+              <QrCode className="w-3 h-3" />
+              <span>Lihat QRIS</span>
+            </button>
           </div>
           <p className="text-slate-800 font-semibold">
             {settings.bankName}: <span className="font-mono text-indigo-700">{settings.bankAccount}</span>
@@ -288,6 +300,8 @@ export const SelfReportModal: React.FC<SelfReportModalProps> = ({
           </div>
         </form>
       </div>
+
+      <QrisModal isOpen={showQris} onClose={() => setShowQris(false)} />
     </div>
   );
 };
