@@ -75,10 +75,10 @@ export const LoginGateModal: React.FC<LoginGateModalProps> = ({
             />
           </div>
           <h2 className="text-lg font-bold tracking-tight">
-            {settings.complexName || 'Pencatatan Iuran Komplek'}
+            Paguyuban {settings.complexName || 'Pencatatan Iuran Komplek'}
           </h2>
           <p className="text-xs text-indigo-200 mt-0.5">
-            {settings.rtRw} • Sistem Kas & Transparansi Iuran
+            Sistem Kas & Transparansi Iuran
           </p>
           <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-white/15 text-indigo-100 border border-white/20">
             <Lock className="w-3 h-3 text-indigo-200" />
