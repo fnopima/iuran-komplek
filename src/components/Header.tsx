@@ -76,8 +76,15 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Top Banner with Branding and Role Switcher */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-sm flex-shrink-0">
-            <Receipt className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200 shadow-xs flex-shrink-0 bg-[#5b6b5c] flex items-center justify-center">
+            <img
+              src="/assets/aistudio/IMG-20261104-WA0005_e17c1c0f.jpg"
+              alt="Logo Griya Andara"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.currentTarget as HTMLElement).style.display = 'none';
+              }}
+            />
           </div>
           <div>
             <div className="flex items-center space-x-2">

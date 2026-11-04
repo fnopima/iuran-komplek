@@ -64,8 +64,15 @@ export const LoginGateModal: React.FC<LoginGateModalProps> = ({
       <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
         {/* Header Branding */}
         <div className="bg-gradient-to-r from-indigo-700 via-indigo-600 to-indigo-800 p-6 text-white text-center relative">
-          <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-inner">
-            <Building className="w-6 h-6 text-indigo-100" />
+          <div className="w-16 h-16 mx-auto mb-3 rounded-full overflow-hidden border-2 border-white/30 shadow-md bg-[#5b6b5c] flex items-center justify-center">
+            <img
+              src="/assets/aistudio/IMG-20261104-WA0005_e17c1c0f.jpg"
+              alt="Logo Griya Andara"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.currentTarget as HTMLElement).style.display = 'none';
+              }}
+            />
           </div>
           <h2 className="text-lg font-bold tracking-tight">
             {settings.complexName || 'Pencatatan Iuran Komplek'}
