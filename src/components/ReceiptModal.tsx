@@ -202,13 +202,23 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
         <div id="receipt-content" className="p-8 bg-white relative">
           {/* Header */}
           <div className="text-center pb-5 border-b-2 border-dashed border-slate-200">
+            <div className="w-12 h-12 mx-auto mb-2.5 rounded-full overflow-hidden border border-slate-200 shadow-xs bg-[#536758] flex items-center justify-center">
+              <img
+                src="/assets/aistudio/IMG-20261104-WA0005_e17c1c0f.jpg"
+                alt="Logo Griya Andara"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget as HTMLElement).style.display = 'none';
+                }}
+              />
+            </div>
             <h2 className="text-lg font-bold tracking-tight text-slate-900 uppercase">
               {settings.complexName}
             </h2>
             <p className="text-xs font-medium text-slate-600">
               PAGUYUBAN WARGA {settings.rtRw} • {settings.subDistrict || 'Kecamatan'}
             </p>
-            <div className="inline-block mt-2 px-3 py-0.5 rounded border border-indigo-600 text-indigo-700 font-bold text-xs uppercase tracking-widest">
+            <div className="inline-block mt-2 px-3 py-0.5 rounded border border-indigo-600 text-indigo-700 font-bold text-xs uppercase tracking-widest bg-indigo-50">
               Kuitansi Iuran Resmi
             </div>
           </div>

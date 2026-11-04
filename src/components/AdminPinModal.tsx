@@ -40,7 +40,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900">Masuk Mode Admin</h3>
-              <p className="text-xs text-slate-500">Khusus Pengurus & Bendahara RT</p>
+              <p className="text-xs text-slate-500">Khusus Pengurus & Bendahara Paguyuban</p>
             </div>
           </div>
           <button

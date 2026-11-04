@@ -120,7 +120,7 @@ export const SelfReportModal: React.FC<SelfReportModalProps> = ({
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900">Lapor Pembayaran Iuran</h3>
-              <p className="text-xs text-slate-500">Konfirmasi bukti transfer ke bendahara RT</p>
+              <p className="text-xs text-slate-500">Konfirmasi bukti transfer ke bendahara paguyuban</p>
             </div>
           </div>
           <button
