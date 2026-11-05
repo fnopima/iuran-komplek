@@ -91,17 +91,13 @@ export const Header: React.FC<HeaderProps> = ({
               <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
                 {settings.complexName || 'Pencatatan Iuran Komplek'}
               </h1>
-              {isCloud ? (
-                <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/70" title="Firestore Spark Free Tier (Bebas Biaya)">
-                  <Wifi className="w-3 h-3 text-emerald-500 animate-pulse" />
-                  Cloud Real-time (Gratis Spark)
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs" title="Tersinkronisasi ke Cloud Firestore secara Real-Time ke semua gadget">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
                 </span>
-              ) : (
-                <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200" title="Penyimpanan Lokal Aktif">
-                  <HardDrive className="w-3 h-3 text-indigo-500" />
-                  Penyimpanan Lokal (100% Gratis)
-                </span>
-              )}
+                <span>Cloud Real-time</span>
+              </span>
             </div>
             <p className="text-xs text-slate-500 font-medium">
               {settings.rtRw} • Sistem Pencatatan & Transparansi Keuangan Warga

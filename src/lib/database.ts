@@ -18,14 +18,13 @@ import type {
   DatabaseInfo,
 } from '../types';
 
-// Keys for LocalStorage
+// Keys for LocalStorage cache (used only for initial instant paint & offline resilience)
 const STORAGE_KEYS = {
   SETTINGS: 'iuran_komplek_settings',
   RESIDENTS: 'iuran_komplek_residents',
   PAYMENTS: 'iuran_komplek_payments',
   EXPENSES: 'iuran_komplek_expenses',
   OTHER_INCOMES: 'iuran_komplek_other_incomes',
-  DB_MODE: 'iuran_komplek_db_mode',
 };
 
 // Error handling per Firebase Skill requirements
@@ -77,11 +76,11 @@ function handleFirestoreError(
     operationType,
     path,
   };
-  console.warn('Firestore Warning/Fallback Triggered:', JSON.stringify(errInfo));
+  console.warn('Firestore Operation Warning:', JSON.stringify(errInfo));
   return errInfo;
 }
 
-// In-Memory state caches
+// In-Memory live state caches
 let currentSettings: AppSettings = DEFAULT_SETTINGS;
 let currentResidents: Resident[] = [];
 let currentPayments: Payment[] = [];
@@ -128,14 +127,13 @@ function notifyOtherIncomes() {
   otherIncomesListeners.forEach((cb) => cb([...currentOtherIncomes]));
 }
 
-// LocalStorage helpers
+// LocalStorage helpers (used only for initial offline paint cache)
 function readLocal<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
     if (!raw) return fallback;
     return JSON.parse(raw) as T;
   } catch (e) {
-    console.warn(`Error reading ${key} from localStorage:`, e);
     return fallback;
   }
 }
@@ -144,11 +142,11 @@ function writeLocal<T>(key: string, value: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
-    console.warn(`Error writing ${key} to localStorage:`, e);
+    // ignore quota errors
   }
 }
 
-// Identification of known sample/dummy data to purge
+// Dummy data detector for legacy cleanup
 const DUMMY_HEADS = new Set([
   'Bpk. Hendra Gunawan',
   'Ibu Ratna Sari',
@@ -188,249 +186,197 @@ function isDummyExpense(e: Expense): boolean {
   return false;
 }
 
-// Clean local storage from any previous dummy data
-function sanitizeAndLoadLocalStorage(): void {
-  const rawResidents = readLocal<Resident[]>(STORAGE_KEYS.RESIDENTS, []);
-  const cleanResidents = rawResidents.filter((r) => !isDummyResident(r));
-  writeLocal(STORAGE_KEYS.RESIDENTS, cleanResidents);
-  currentResidents = cleanResidents;
-
-  const rawPayments = readLocal<Payment[]>(STORAGE_KEYS.PAYMENTS, []);
-  const cleanPayments = rawPayments.filter((p) => !isDummyPayment(p));
-  writeLocal(STORAGE_KEYS.PAYMENTS, cleanPayments);
-  currentPayments = cleanPayments;
-
-  const rawExpenses = readLocal<Expense[]>(STORAGE_KEYS.EXPENSES, []);
-  const cleanExpenses = rawExpenses.filter((e) => !isDummyExpense(e));
-  writeLocal(STORAGE_KEYS.EXPENSES, cleanExpenses);
-  currentExpenses = cleanExpenses;
-
-  const rawOtherIncomes = readLocal<OtherIncome[]>(STORAGE_KEYS.OTHER_INCOMES, []);
-  currentOtherIncomes = rawOtherIncomes;
-
-  const rawSettings = readLocal<AppSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS);
-  currentSettings = {
-    ...DEFAULT_SETTINGS,
-    ...rawSettings,
-    wargaPassword: rawSettings.wargaPassword || DEFAULT_SETTINGS.wargaPassword || 'andara',
-  };
-}
-
-// Initialize Database system
+// Initialize Real-time Cloud Firestore Engine
 let isInitialized = false;
 export async function initializeDatabase(): Promise<void> {
   if (isInitialized) return;
   isInitialized = true;
 
-  // Step 1: Pre-load and purge dummy data from local persistent storage
-  sanitizeAndLoadLocalStorage();
+  // 1. Initial warm paint from local cache so the screen does not flash empty
+  const cachedSettings = readLocal<AppSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS);
+  currentSettings = {
+    ...DEFAULT_SETTINGS,
+    ...cachedSettings,
+    wargaPassword: cachedSettings.wargaPassword || DEFAULT_SETTINGS.wargaPassword || 'andara',
+  };
+  currentResidents = readLocal<Resident[]>(STORAGE_KEYS.RESIDENTS, []).filter((r) => !isDummyResident(r));
+  currentPayments = readLocal<Payment[]>(STORAGE_KEYS.PAYMENTS, []).filter((p) => !isDummyPayment(p));
+  currentExpenses = readLocal<Expense[]>(STORAGE_KEYS.EXPENSES, []).filter((e) => !isDummyExpense(e));
+  currentOtherIncomes = readLocal<OtherIncome[]>(STORAGE_KEYS.OTHER_INCOMES, []);
+
   notifySettings();
   notifyResidents();
   notifyPayments();
   notifyExpenses();
   notifyOtherIncomes();
 
-  // Step 2: Test Cloud Firestore connection (Spark Free Tier)
-  let isFirestoreConnected = false;
-  try {
-    isFirestoreConnected = await testFirebaseConnection();
-  } catch (err) {
-    console.warn('Firebase connection check failed, using Local Storage fallback:', err);
-    isFirestoreConnected = false;
-  }
-
-  if (!isFirestoreConnected) {
-    currentDbInfo = {
-      mode: 'local',
-      isOnline: false,
-      firestoreConfigured: false,
-      lastSyncedAt: new Date().toLocaleTimeString('id-ID'),
-      errorMessage: 'Berjalan dalam mode penyimpanan lokal (100% Bebas Biaya/Gratis).',
-    };
+  // 2. Test cloud connection
+  testFirebaseConnection().then((ok) => {
+    currentDbInfo.isOnline = ok;
+    currentDbInfo.mode = 'firestore';
     notifyDbInfo();
-    return;
-  }
+  });
 
-  // Step 3: Attach Firestore real-time onSnapshot listeners
-  try {
-    // 1. Settings listener
-    onSnapshot(
-      doc(db, 'settings', 'general'),
-      (snap) => {
-        if (snap.exists()) {
-          const rawData = snap.data() as AppSettings;
-          currentSettings = {
-            ...DEFAULT_SETTINGS,
-            ...rawData,
-            wargaPassword: rawData.wargaPassword || DEFAULT_SETTINGS.wargaPassword || 'andara',
-          };
-          writeLocal(STORAGE_KEYS.SETTINGS, currentSettings);
-          notifySettings();
-        } else {
-          setDoc(doc(db, 'settings', 'general'), currentSettings).catch((e) =>
-            handleFirestoreError(e, OperationType.WRITE, 'settings/general')
-          );
-        }
-        currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
-        notifyDbInfo();
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.GET, 'settings/general');
-        fallbackToLocalMode('Gagal sinkronisasi pengaturan cloud.');
+  // 3. Attach authoritative, real-time Cloud Firestore listeners
+  // Any change made on Gadget A will automatically sync to Gadget B within milliseconds!
+
+  // Collection: Settings
+  onSnapshot(
+    doc(db, 'settings', 'general'),
+    (snap) => {
+      if (snap.exists()) {
+        const rawData = snap.data() as AppSettings;
+        currentSettings = {
+          ...DEFAULT_SETTINGS,
+          ...rawData,
+          wargaPassword: rawData.wargaPassword || DEFAULT_SETTINGS.wargaPassword || 'andara',
+        };
+        writeLocal(STORAGE_KEYS.SETTINGS, currentSettings);
+        notifySettings();
+      } else {
+        // First time initialization in Cloud Firestore
+        setDoc(doc(db, 'settings', 'general'), currentSettings).catch((e) =>
+          handleFirestoreError(e, OperationType.WRITE, 'settings/general')
+        );
       }
-    );
+      currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+      currentDbInfo.isOnline = true;
+      currentDbInfo.mode = 'firestore';
+      notifyDbInfo();
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, 'settings/general');
+    }
+  );
 
-    // 2. Residents listener
-    onSnapshot(
-      collection(db, 'residents'),
-      async (snap) => {
-        const list: Resident[] = [];
-        const dummyDocsToDelete: string[] = [];
-
-        snap.forEach((d) => {
-          const item = { id: d.id, ...d.data() } as Resident;
-          if (isDummyResident(item)) {
-            dummyDocsToDelete.push(d.id);
-          } else {
-            list.push(item);
-          }
-        });
-
-        // Auto-purge dummy records in Firestore if found
-        if (dummyDocsToDelete.length > 0) {
-          dummyDocsToDelete.forEach((id) => {
-            deleteDoc(doc(db, 'residents', id)).catch(() => {});
-          });
+  // Collection: Residents
+  onSnapshot(
+    collection(db, 'residents'),
+    async (snap) => {
+      const list: Resident[] = [];
+      snap.forEach((d) => {
+        const item = { id: d.id, ...d.data() } as Resident;
+        if (!isDummyResident(item)) {
+          list.push(item);
         }
+      });
 
+      // If Cloud has no residents yet, but this device had previously created non-dummy residents,
+      // automatically migrate them to Cloud Firestore so no data is lost!
+      if (list.length === 0 && currentResidents.length > 0) {
+        for (const res of currentResidents) {
+          setDoc(doc(db, 'residents', res.id), res).catch(() => {});
+        }
+      } else {
         list.sort((a, b) => a.houseNumber.localeCompare(b.houseNumber));
         currentResidents = list;
         writeLocal(STORAGE_KEYS.RESIDENTS, list);
         notifyResidents();
-
-        currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
-        notifyDbInfo();
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'residents');
-        fallbackToLocalMode('Gagal sinkronisasi data warga cloud.');
       }
-    );
 
-    // 3. Payments listener
-    onSnapshot(
-      collection(db, 'payments'),
-      async (snap) => {
-        const list: Payment[] = [];
-        const dummyDocsToDelete: string[] = [];
+      currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+      currentDbInfo.isOnline = true;
+      currentDbInfo.mode = 'firestore';
+      notifyDbInfo();
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'residents');
+    }
+  );
 
-        snap.forEach((d) => {
-          const item = { id: d.id, ...d.data() } as Payment;
-          if (isDummyPayment(item)) {
-            dummyDocsToDelete.push(d.id);
-          } else {
-            list.push(item);
-          }
-        });
-
-        if (dummyDocsToDelete.length > 0) {
-          dummyDocsToDelete.forEach((id) => {
-            deleteDoc(doc(db, 'payments', id)).catch(() => {});
-          });
+  // Collection: Payments
+  onSnapshot(
+    collection(db, 'payments'),
+    async (snap) => {
+      const list: Payment[] = [];
+      snap.forEach((d) => {
+        const item = { id: d.id, ...d.data() } as Payment;
+        if (!isDummyPayment(item)) {
+          list.push(item);
         }
+      });
 
+      if (list.length === 0 && currentPayments.length > 0) {
+        for (const pay of currentPayments) {
+          setDoc(doc(db, 'payments', pay.id), pay).catch(() => {});
+        }
+      } else {
         currentPayments = list;
         writeLocal(STORAGE_KEYS.PAYMENTS, list);
         notifyPayments();
-
-        currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
-        notifyDbInfo();
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'payments');
-        fallbackToLocalMode('Gagal sinkronisasi catatan iuran cloud.');
       }
-    );
 
-    // 4. Expenses listener
-    onSnapshot(
-      collection(db, 'expenses'),
-      async (snap) => {
-        const list: Expense[] = [];
-        const dummyDocsToDelete: string[] = [];
+      currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+      currentDbInfo.isOnline = true;
+      currentDbInfo.mode = 'firestore';
+      notifyDbInfo();
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'payments');
+    }
+  );
 
-        snap.forEach((d) => {
-          const item = { id: d.id, ...d.data() } as Expense;
-          if (isDummyExpense(item)) {
-            dummyDocsToDelete.push(d.id);
-          } else {
-            list.push(item);
-          }
-        });
-
-        if (dummyDocsToDelete.length > 0) {
-          dummyDocsToDelete.forEach((id) => {
-            deleteDoc(doc(db, 'expenses', id)).catch(() => {});
-          });
+  // Collection: Expenses
+  onSnapshot(
+    collection(db, 'expenses'),
+    async (snap) => {
+      const list: Expense[] = [];
+      snap.forEach((d) => {
+        const item = { id: d.id, ...d.data() } as Expense;
+        if (!isDummyExpense(item)) {
+          list.push(item);
         }
+      });
 
+      if (list.length === 0 && currentExpenses.length > 0) {
+        for (const exp of currentExpenses) {
+          setDoc(doc(db, 'expenses', exp.id), exp).catch(() => {});
+        }
+      } else {
         currentExpenses = list;
         writeLocal(STORAGE_KEYS.EXPENSES, list);
         notifyExpenses();
-
-        currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
-        notifyDbInfo();
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'expenses');
-        fallbackToLocalMode('Gagal sinkronisasi pengeluaran cloud.');
       }
-    );
 
-    // 5. OtherIncomes listener (Pendapatan di luar iuran warga)
-    onSnapshot(
-      collection(db, 'otherIncomes'),
-      (snap) => {
-        const list: OtherIncome[] = [];
-        snap.forEach((d) => {
-          list.push({ id: d.id, ...d.data() } as OtherIncome);
-        });
+      currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+      currentDbInfo.isOnline = true;
+      currentDbInfo.mode = 'firestore';
+      notifyDbInfo();
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'expenses');
+    }
+  );
 
+  // Collection: Other Incomes
+  onSnapshot(
+    collection(db, 'otherIncomes'),
+    (snap) => {
+      const list: OtherIncome[] = [];
+      snap.forEach((d) => {
+        list.push({ id: d.id, ...d.data() } as OtherIncome);
+      });
+
+      if (list.length === 0 && currentOtherIncomes.length > 0) {
+        for (const inc of currentOtherIncomes) {
+          setDoc(doc(db, 'otherIncomes', inc.id), inc).catch(() => {});
+        }
+      } else {
         list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         currentOtherIncomes = list;
         writeLocal(STORAGE_KEYS.OTHER_INCOMES, list);
         notifyOtherIncomes();
-
-        currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
-        notifyDbInfo();
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.LIST, 'otherIncomes');
-        fallbackToLocalMode('Gagal sinkronisasi pendapatan lain cloud.');
       }
-    );
 
-    currentDbInfo = {
-      mode: 'firestore',
-      isOnline: true,
-      firestoreConfigured: true,
-      lastSyncedAt: new Date().toLocaleTimeString('id-ID'),
-    };
-    notifyDbInfo();
-  } catch (err) {
-    fallbackToLocalMode('Penyimpanan cloud dialihkan ke mode lokal.');
-  }
-}
-
-function fallbackToLocalMode(reason: string) {
-  currentDbInfo = {
-    mode: 'local',
-    isOnline: false,
-    firestoreConfigured: false,
-    lastSyncedAt: new Date().toLocaleTimeString('id-ID'),
-    errorMessage: reason,
-  };
-  notifyDbInfo();
+      currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+      currentDbInfo.isOnline = true;
+      currentDbInfo.mode = 'firestore';
+      notifyDbInfo();
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'otherIncomes');
+    }
+  );
 }
 
 // -------------------------------------------------------------
@@ -477,7 +423,8 @@ export function getDatabaseInfo(): DatabaseInfo {
 }
 
 // -------------------------------------------------------------
-// CRUD OPERATIONS (Dual Sync: Firestore + LocalStorage)
+// CLOUD-FIRST REAL-TIME CRUD MUTATIONS
+// Every function writes directly to Cloud Firestore so all gadgets sync instantly
 // -------------------------------------------------------------
 
 // Settings
@@ -486,35 +433,39 @@ export async function updateAppSettings(newSettings: AppSettings): Promise<void>
   writeLocal(STORAGE_KEYS.SETTINGS, newSettings);
   notifySettings();
 
-  if (currentDbInfo.mode === 'firestore') {
-    try {
-      await setDoc(doc(db, 'settings', 'general'), newSettings);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, 'settings/general');
-    }
+  try {
+    await setDoc(doc(db, 'settings', 'general'), newSettings);
+    currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+    notifyDbInfo();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'settings/general');
+    throw err;
   }
 }
 
 // Residents
 export async function addResident(data: Omit<Resident, 'id'>): Promise<string> {
-  const newId = `res-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  const newId = `res-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const fullResident: Resident = {
     id: newId,
     ...data,
   };
 
+  // Optimistic local update
   currentResidents = [...currentResidents, fullResident].sort((a, b) =>
     a.houseNumber.localeCompare(b.houseNumber)
   );
   writeLocal(STORAGE_KEYS.RESIDENTS, currentResidents);
   notifyResidents();
 
-  if (currentDbInfo.mode === 'firestore') {
-    try {
-      await setDoc(doc(db, 'residents', newId), fullResident);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `residents/${newId}`);
-    }
+  try {
+    // Write directly to Cloud Storage
+    await setDoc(doc(db, 'residents', newId), fullResident);
+    currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+    notifyDbInfo();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, `residents/${newId}`);
+    throw err;
   }
 
   return newId;
@@ -525,12 +476,13 @@ export async function updateResident(id: string, data: Partial<Resident>): Promi
   writeLocal(STORAGE_KEYS.RESIDENTS, currentResidents);
   notifyResidents();
 
-  if (currentDbInfo.mode === 'firestore') {
-    try {
-      await updateDoc(doc(db, 'residents', id), data);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `residents/${id}`);
-    }
+  try {
+    await updateDoc(doc(db, 'residents', id), data);
+    currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+    notifyDbInfo();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `residents/${id}`);
+    throw err;
   }
 }
 
@@ -539,18 +491,19 @@ export async function deleteResident(id: string): Promise<void> {
   writeLocal(STORAGE_KEYS.RESIDENTS, currentResidents);
   notifyResidents();
 
-  if (currentDbInfo.mode === 'firestore') {
-    try {
-      await deleteDoc(doc(db, 'residents', id));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `residents/${id}`);
-    }
+  try {
+    await deleteDoc(doc(db, 'residents', id));
+    currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+    notifyDbInfo();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `residents/${id}`);
+    throw err;
   }
 }
 
 // Payments
 export async function addPayment(data: Omit<Payment, 'id'>): Promise<string> {
-  const newId = `pay-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  const newId = `pay-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const fullPayment: Payment = {
     id: newId,
     ...data,
@@ -560,12 +513,14 @@ export async function addPayment(data: Omit<Payment, 'id'>): Promise<string> {
   writeLocal(STORAGE_KEYS.PAYMENTS, currentPayments);
   notifyPayments();
 
-  if (currentDbInfo.mode === 'firestore') {
-    try {
-      await setDoc(doc(db, 'payments', newId), fullPayment);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `payments/${newId}`);
-    }
+  try {
+    // Write directly to Cloud Storage
+    await setDoc(doc(db, 'payments', newId), fullPayment);
+    currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+    notifyDbInfo();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, `payments/${newId}`);
+    throw err;
   }
 
   return newId;
@@ -576,12 +531,13 @@ export async function updatePayment(id: string, data: Partial<Payment>): Promise
   writeLocal(STORAGE_KEYS.PAYMENTS, currentPayments);
   notifyPayments();
 
-  if (currentDbInfo.mode === 'firestore') {
-    try {
-      await updateDoc(doc(db, 'payments', id), data);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `payments/${id}`);
-    }
+  try {
+    await updateDoc(doc(db, 'payments', id), data);
+    currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+    notifyDbInfo();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `payments/${id}`);
+    throw err;
   }
 }
 
@@ -590,18 +546,19 @@ export async function deletePayment(id: string): Promise<void> {
   writeLocal(STORAGE_KEYS.PAYMENTS, currentPayments);
   notifyPayments();
 
-  if (currentDbInfo.mode === 'firestore') {
-    try {
-      await deleteDoc(doc(db, 'payments', id));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `payments/${id}`);
-    }
+  try {
+    await deleteDoc(doc(db, 'payments', id));
+    currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+    notifyDbInfo();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `payments/${id}`);
+    throw err;
   }
 }
 
 // Expenses
 export async function addExpense(data: Omit<Expense, 'id'>): Promise<string> {
-  const newId = `exp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  const newId = `exp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const fullExpense: Expense = {
     id: newId,
     ...data,
@@ -611,12 +568,14 @@ export async function addExpense(data: Omit<Expense, 'id'>): Promise<string> {
   writeLocal(STORAGE_KEYS.EXPENSES, currentExpenses);
   notifyExpenses();
 
-  if (currentDbInfo.mode === 'firestore') {
-    try {
-      await setDoc(doc(db, 'expenses', newId), fullExpense);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `expenses/${newId}`);
-    }
+  try {
+    // Write directly to Cloud Storage
+    await setDoc(doc(db, 'expenses', newId), fullExpense);
+    currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+    notifyDbInfo();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, `expenses/${newId}`);
+    throw err;
   }
 
   return newId;
@@ -627,12 +586,13 @@ export async function updateExpense(id: string, data: Partial<Expense>): Promise
   writeLocal(STORAGE_KEYS.EXPENSES, currentExpenses);
   notifyExpenses();
 
-  if (currentDbInfo.mode === 'firestore') {
-    try {
-      await updateDoc(doc(db, 'expenses', id), data);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `expenses/${id}`);
-    }
+  try {
+    await updateDoc(doc(db, 'expenses', id), data);
+    currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+    notifyDbInfo();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `expenses/${id}`);
+    throw err;
   }
 }
 
@@ -641,18 +601,19 @@ export async function deleteExpense(id: string): Promise<void> {
   writeLocal(STORAGE_KEYS.EXPENSES, currentExpenses);
   notifyExpenses();
 
-  if (currentDbInfo.mode === 'firestore') {
-    try {
-      await deleteDoc(doc(db, 'expenses', id));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `expenses/${id}`);
-    }
+  try {
+    await deleteDoc(doc(db, 'expenses', id));
+    currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+    notifyDbInfo();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `expenses/${id}`);
+    throw err;
   }
 }
 
 // Other Incomes (Pendapatan di Luar Iuran Warga)
 export async function addOtherIncome(data: Omit<OtherIncome, 'id'>): Promise<string> {
-  const newId = `inc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  const newId = `inc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const fullIncome: OtherIncome = {
     id: newId,
     createdAt: new Date().toISOString(),
@@ -663,12 +624,14 @@ export async function addOtherIncome(data: Omit<OtherIncome, 'id'>): Promise<str
   writeLocal(STORAGE_KEYS.OTHER_INCOMES, currentOtherIncomes);
   notifyOtherIncomes();
 
-  if (currentDbInfo.mode === 'firestore') {
-    try {
-      await setDoc(doc(db, 'otherIncomes', newId), fullIncome);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `otherIncomes/${newId}`);
-    }
+  try {
+    // Write directly to Cloud Storage
+    await setDoc(doc(db, 'otherIncomes', newId), fullIncome);
+    currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+    notifyDbInfo();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, `otherIncomes/${newId}`);
+    throw err;
   }
 
   return newId;
@@ -679,12 +642,13 @@ export async function updateOtherIncome(id: string, data: Partial<OtherIncome>):
   writeLocal(STORAGE_KEYS.OTHER_INCOMES, currentOtherIncomes);
   notifyOtherIncomes();
 
-  if (currentDbInfo.mode === 'firestore') {
-    try {
-      await updateDoc(doc(db, 'otherIncomes', id), data);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `otherIncomes/${id}`);
-    }
+  try {
+    await updateDoc(doc(db, 'otherIncomes', id), data);
+    currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+    notifyDbInfo();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `otherIncomes/${id}`);
+    throw err;
   }
 }
 
@@ -693,12 +657,13 @@ export async function deleteOtherIncome(id: string): Promise<void> {
   writeLocal(STORAGE_KEYS.OTHER_INCOMES, currentOtherIncomes);
   notifyOtherIncomes();
 
-  if (currentDbInfo.mode === 'firestore') {
-    try {
-      await deleteDoc(doc(db, 'otherIncomes', id));
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `otherIncomes/${id}`);
-    }
+  try {
+    await deleteDoc(doc(db, 'otherIncomes', id));
+    currentDbInfo.lastSyncedAt = new Date().toLocaleTimeString('id-ID');
+    notifyDbInfo();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `otherIncomes/${id}`);
+    throw err;
   }
 }
 
@@ -723,28 +688,26 @@ export async function clearAllDummyData(): Promise<{ residentsRemoved: number; p
   notifyPayments();
   notifyExpenses();
 
-  if (currentDbInfo.mode === 'firestore') {
-    try {
-      const resSnap = await getDocs(collection(db, 'residents'));
-      resSnap.forEach((d) => {
-        const r = { id: d.id, ...d.data() } as Resident;
-        if (isDummyResident(r)) deleteDoc(doc(db, 'residents', d.id)).catch(() => {});
-      });
+  try {
+    const resSnap = await getDocs(collection(db, 'residents'));
+    resSnap.forEach((d) => {
+      const r = { id: d.id, ...d.data() } as Resident;
+      if (isDummyResident(r)) deleteDoc(doc(db, 'residents', d.id)).catch(() => {});
+    });
 
-      const paySnap = await getDocs(collection(db, 'payments'));
-      paySnap.forEach((d) => {
-        const p = { id: d.id, ...d.data() } as Payment;
-        if (isDummyPayment(p)) deleteDoc(doc(db, 'payments', d.id)).catch(() => {});
-      });
+    const paySnap = await getDocs(collection(db, 'payments'));
+    paySnap.forEach((d) => {
+      const p = { id: d.id, ...d.data() } as Payment;
+      if (isDummyPayment(p)) deleteDoc(doc(db, 'payments', d.id)).catch(() => {});
+    });
 
-      const expSnap = await getDocs(collection(db, 'expenses'));
-      expSnap.forEach((d) => {
-        const e = { id: d.id, ...d.data() } as Expense;
-        if (isDummyExpense(e)) deleteDoc(doc(db, 'expenses', d.id)).catch(() => {});
-      });
-    } catch (err) {
-      console.warn('Firestore purge error:', err);
-    }
+    const expSnap = await getDocs(collection(db, 'expenses'));
+    expSnap.forEach((d) => {
+      const e = { id: d.id, ...d.data() } as Expense;
+      if (isDummyExpense(e)) deleteDoc(doc(db, 'expenses', d.id)).catch(() => {});
+    });
+  } catch (err) {
+    console.warn('Firestore purge error:', err);
   }
 
   return {
@@ -770,29 +733,27 @@ export async function resetAllDataToEmpty(): Promise<void> {
   notifyExpenses();
   notifyOtherIncomes();
 
-  if (currentDbInfo.mode === 'firestore') {
-    try {
-      const [resSnap, paySnap, expSnap, incSnap] = await Promise.all([
-        getDocs(collection(db, 'residents')),
-        getDocs(collection(db, 'payments')),
-        getDocs(collection(db, 'expenses')),
-        getDocs(collection(db, 'otherIncomes')),
-      ]);
+  try {
+    const [resSnap, paySnap, expSnap, incSnap] = await Promise.all([
+      getDocs(collection(db, 'residents')),
+      getDocs(collection(db, 'payments')),
+      getDocs(collection(db, 'expenses')),
+      getDocs(collection(db, 'otherIncomes')),
+    ]);
 
-      const deletions: Promise<void>[] = [];
-      resSnap.forEach((d) => deletions.push(deleteDoc(doc(db, 'residents', d.id))));
-      paySnap.forEach((d) => deletions.push(deleteDoc(doc(db, 'payments', d.id))));
-      expSnap.forEach((d) => deletions.push(deleteDoc(doc(db, 'expenses', d.id))));
-      incSnap.forEach((d) => deletions.push(deleteDoc(doc(db, 'otherIncomes', d.id))));
-      await Promise.all(deletions);
-    } catch (err) {
-      console.warn('Reset firestore warning:', err);
-    }
+    const deletions: Promise<void>[] = [];
+    resSnap.forEach((d) => deletions.push(deleteDoc(doc(db, 'residents', d.id))));
+    paySnap.forEach((d) => deletions.push(deleteDoc(doc(db, 'payments', d.id))));
+    expSnap.forEach((d) => deletions.push(deleteDoc(doc(db, 'expenses', d.id))));
+    incSnap.forEach((d) => deletions.push(deleteDoc(doc(db, 'otherIncomes', d.id))));
+    await Promise.all(deletions);
+  } catch (err) {
+    console.warn('Reset firestore warning:', err);
   }
 }
 
 // -------------------------------------------------------------
-// BACKUP & RESTORE
+// BACKUP & RESTORE (Direct Cloud Sync)
 // -------------------------------------------------------------
 
 export interface DatabaseBackupPayload {
@@ -843,25 +804,23 @@ export async function importDatabaseBackup(jsonString: string): Promise<boolean>
     notifyExpenses();
     notifyOtherIncomes();
 
-    // Sync to firestore if active
-    if (currentDbInfo.mode === 'firestore') {
-      try {
-        await setDoc(doc(db, 'settings', 'general'), currentSettings);
-        for (const res of currentResidents) {
-          await setDoc(doc(db, 'residents', res.id), res);
-        }
-        for (const pay of currentPayments) {
-          await setDoc(doc(db, 'payments', pay.id), pay);
-        }
-        for (const exp of currentExpenses) {
-          await setDoc(doc(db, 'expenses', exp.id), exp);
-        }
-        for (const inc of currentOtherIncomes) {
-          await setDoc(doc(db, 'otherIncomes', inc.id), inc);
-        }
-      } catch (err) {
-        console.warn('Sync to firestore during restore partially succeeded:', err);
+    // Direct write to Cloud Firestore
+    try {
+      await setDoc(doc(db, 'settings', 'general'), currentSettings);
+      for (const res of currentResidents) {
+        await setDoc(doc(db, 'residents', res.id), res);
       }
+      for (const pay of currentPayments) {
+        await setDoc(doc(db, 'payments', pay.id), pay);
+      }
+      for (const exp of currentExpenses) {
+        await setDoc(doc(db, 'expenses', exp.id), exp);
+      }
+      for (const inc of currentOtherIncomes) {
+        await setDoc(doc(db, 'otherIncomes', inc.id), inc);
+      }
+    } catch (err) {
+      console.warn('Sync to firestore during restore partially succeeded:', err);
     }
 
     return true;

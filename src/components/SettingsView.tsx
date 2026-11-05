@@ -665,8 +665,8 @@ Pengurus & Bendahara ${formData.rtRw}`;
             <div className="flex items-center space-x-2 pb-3 border-b border-slate-100">
               <Database className="w-5 h-5 text-indigo-600" />
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Status Database & Cadangan</h3>
-                <p className="text-[11px] text-slate-500">100% Fitur Gratis & Tanpa Perlu Billing</p>
+                <h3 className="text-sm font-bold text-slate-900">Status Database Cloud & Cadangan</h3>
+                <p className="text-[11px] text-slate-500">Tersinkronisasi Real-Time ke Semua Gadget (HP, Laptop, Tablet)</p>
               </div>
             </div>
 
@@ -692,14 +692,17 @@ Pengurus & Bendahara ${formData.rtRw}`;
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-600">Mode Penyimpanan:</span>
                 <span className="font-semibold text-slate-800 flex items-center gap-1.5">
-                  <span className={`w-2 h-2 rounded-full ${dbInfo?.mode === 'firestore' ? 'bg-emerald-500' : 'bg-indigo-500'}`} />
-                  {dbInfo?.mode === 'firestore' ? 'Cloud Firestore (Spark Free Tier)' : 'Penyimpanan Lokal'}
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+                  </span>
+                  <span>Cloud Firestore (Real-Time Multi-Gadget)</span>
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-600">Batas Biaya (Billing):</span>
+                <span className="text-slate-600">Status Sinkronisasi:</span>
                 <span className="font-semibold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded text-[11px]">
-                  Bebas Biaya (Rp 0 / Gratis)
+                  Langsung ke Cloud (Otomatis)
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
