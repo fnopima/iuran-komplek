@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Plus,
@@ -7,17 +7,19 @@ import {
   FileText,
   Trash2,
   Send,
-  AlertTriangle,
   ImageIcon,
   Filter,
+  FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { updatePayment, deletePayment } from '../lib/database';
 import type { Payment, Resident, AppSettings, UserRole, PaymentStatus } from '../types';
 import {
   formatRupiah,
   formatPeriodMonth,
   formatDateIndo,
-  getCurrentPeriodMonth,
   getAvailablePeriodMonths,
 } from '../lib/formatters';
 
@@ -44,6 +46,13 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   const [selectedMonth, setSelectedMonth] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | PaymentStatus>('all');
   const [previewProofUrl, setPreviewProofUrl] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 20;
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedMonth, statusFilter]);
 
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
@@ -60,18 +69,40 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
       }));
   }, [payments]);
 
-  // Filter payments
-  const filteredPayments = payments.filter((p) => {
-    const matchesSearch =
-      p.houseNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.headOfFamily.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.receiptNo.toLowerCase().includes(searchTerm.toLowerCase());
+  // 1. Filter payments according to search, month, and status
+  const filteredPayments = useMemo(() => {
+    return payments.filter((p) => {
+      const matchesSearch =
+        p.houseNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.headOfFamily.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.receiptNo.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesMonth = selectedMonth ? p.periodMonth === selectedMonth : true;
-    const matchesStatus = statusFilter === 'all' ? true : p.status === statusFilter;
+      const matchesMonth = selectedMonth ? p.periodMonth === selectedMonth : true;
+      const matchesStatus = statusFilter === 'all' ? true : p.status === statusFilter;
 
-    return matchesSearch && matchesMonth && matchesStatus;
-  });
+      return matchesSearch && matchesMonth && matchesStatus;
+    });
+  }, [payments, searchTerm, selectedMonth, statusFilter]);
+
+  // 2. Sort by recorded date (paidAt): newest first to older
+  const sortedPayments = useMemo(() => {
+    return [...filteredPayments].sort((a, b) => {
+      const timeA = new Date(a.paidAt || 0).getTime();
+      const timeB = new Date(b.paidAt || 0).getTime();
+      if (timeB !== timeA) {
+        return timeB - timeA;
+      }
+      return (b.receiptNo || '').localeCompare(a.receiptNo || '');
+    });
+  }, [filteredPayments]);
+
+  // 3. Pagination calculations: limit max 20 per page
+  const totalItems = sortedPayments.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const activePage = Math.min(currentPage, totalPages);
+  const startIndex = (activePage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const paginatedPayments = sortedPayments.slice(startIndex, endIndex);
 
   const pendingCount = payments.filter((p) => p.status === 'pending').length;
 
@@ -80,7 +111,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
       await updatePayment(paymentId, {
         status: 'lunas',
         verifiedAt: new Date().toISOString(),
-        recordedBy: settings.treasurerName || 'Bendahara RT',
+        recordedBy: settings.treasurerName || 'Bendahara Paguyuban',
       });
     } catch (err) {
       console.error('Error verifying payment:', err);
@@ -108,6 +139,55 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
     }
   };
 
+  // Export to Excel (.xlsx)
+  const handleExportExcel = () => {
+    const dataToExport = sortedPayments.length > 0 ? sortedPayments : payments;
+    if (dataToExport.length === 0) {
+      alert('Tidak ada data pembayaran iuran untuk diunduh.');
+      return;
+    }
+
+    const rows = dataToExport.map((p, index) => ({
+      'No': index + 1,
+      'No. Kuitansi': p.receiptNo || '-',
+      'Tanggal Pembayaran': formatDateIndo(p.paidAt),
+      'No. Rumah / Unit': p.houseNumber,
+      'Nama Warga / KK': p.headOfFamily,
+      'Periode Iuran': formatPeriodMonth(p.periodMonth),
+      'Jenis Iuran': p.feeType || 'Iuran Kas',
+      'Nominal (Rp)': p.amount,
+      'Metode Bayar': (p.paymentMethod || 'transfer').toUpperCase(),
+      'Status': p.status.toUpperCase(),
+      'Dicatat Oleh': p.recordedBy || '-',
+      'Catatan': p.notes || '-',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+
+    // Auto-fit column widths
+    worksheet['!cols'] = [
+      { wch: 6 },  // No
+      { wch: 22 }, // No. Kuitansi
+      { wch: 22 }, // Tanggal
+      { wch: 16 }, // No. Rumah
+      { wch: 28 }, // Nama Warga
+      { wch: 18 }, // Periode
+      { wch: 30 }, // Jenis Iuran
+      { wch: 16 }, // Nominal
+      { wch: 14 }, // Metode Bayar
+      { wch: 16 }, // Status
+      { wch: 22 }, // Dicatat Oleh
+      { wch: 32 }, // Catatan
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Catatan Iuran');
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const complexStr = (settings.complexName || 'Griya_Andara').replace(/\s+/g, '_');
+    XLSX.writeFile(workbook, `Data_Iuran_${complexStr}_${dateStr}.xlsx`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Banner & Action */}
@@ -116,12 +196,23 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
           <h2 className="text-lg font-bold text-slate-900 tracking-tight">Catatan & Histori Iuran</h2>
           <p className="text-xs text-slate-500">
             {userRole === 'admin'
-              ? 'Kelola transaksi, verifikasi bukti transfer warga, dan terbitkan kuitansi'
+              ? 'Kelola transaksi, verifikasi bukti transfer warga, unduh laporan Excel, dan terbitkan kuitansi'
               : 'Periksa riwayat pembayaran rumah Anda dan laporkan bukti transfer'}
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 flex-wrap gap-2">
+          {/* Download Excel Button */}
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            title="Download data pembayaran iuran dalam format spreadsheet Excel (.xlsx)"
+            className="flex items-center space-x-1.5 px-3.5 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 border border-emerald-200 rounded-lg shadow-2xs transition"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+            <span>Unduh Excel (.xlsx)</span>
+          </button>
+
           {userRole === 'admin' ? (
             <button
               onClick={onOpenNewPayment}
@@ -247,141 +338,213 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
 
       {/* Transactions List */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        {filteredPayments.length === 0 ? (
+        {sortedPayments.length === 0 ? (
           <div className="py-12 text-center text-slate-400">
             <FileText className="w-10 h-10 mx-auto mb-2 text-slate-300" />
             <p className="text-xs font-semibold text-slate-600">Tidak ada transaksi ditemukan</p>
             <p className="text-xs text-slate-400 mt-1">Coba sesuaikan kata kunci pencarian atau filter bulan</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
-            {filteredPayments.map((payment) => {
-              const isLunas = payment.status === 'lunas';
-              const isPending = payment.status === 'pending';
+          <>
+            <div className="divide-y divide-slate-100">
+              {paginatedPayments.map((payment) => {
+                const isLunas = payment.status === 'lunas';
+                const isPending = payment.status === 'pending';
 
-              return (
-                <div
-                  key={payment.id}
-                  className="p-4 sm:p-5 hover:bg-slate-50/70 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                >
-                  <div className="flex items-start space-x-3.5">
-                    <div
-                      className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0 ${
-                        isLunas
-                          ? 'bg-blue-100 text-blue-700'
-                          : isPending
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-rose-100 text-rose-700'
-                      }`}
-                    >
-                      {payment.houseNumber.replace('Blok ', '')}
+                return (
+                  <div
+                    key={payment.id}
+                    className="p-4 sm:p-5 hover:bg-slate-50/70 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  >
+                    <div className="flex items-start space-x-3.5">
+                      <div
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs flex-shrink-0 ${
+                          isLunas
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : isPending
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-rose-100 text-rose-700'
+                        }`}
+                      >
+                        {payment.houseNumber.replace('Blok ', '')}
+                      </div>
+
+                      <div>
+                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                          <span className="text-sm font-semibold text-slate-900">{payment.headOfFamily}</span>
+                          <span className="text-xs text-slate-500">({payment.houseNumber})</span>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                              isLunas
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : isPending
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-rose-100 text-rose-700'
+                            }`}
+                          >
+                            {payment.status}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center space-x-2 text-xs text-slate-500 mt-1 flex-wrap">
+                          <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
+                            Bulan: {formatPeriodMonth(payment.periodMonth)}
+                          </span>
+                          <span>•</span>
+                          <span title="Tanggal Pembayaran">{formatDateIndo(payment.paidAt)}</span>
+                          <span>•</span>
+                          <span className="capitalize">{payment.paymentMethod}</span>
+                          <span>•</span>
+                          <span className="font-mono text-[11px]">{payment.receiptNo}</span>
+                        </div>
+
+                        {payment.notes && (
+                          <p className="text-[11px] text-slate-500 mt-1 italic">
+                            Catatan: {payment.notes}
+                          </p>
+                        )}
+
+                        {payment.transferProofUrl && (
+                          <button
+                            onClick={() => setPreviewProofUrl(payment.transferProofUrl || null)}
+                            className="inline-flex items-center space-x-1 text-[11px] text-indigo-600 hover:text-indigo-800 font-medium mt-1"
+                          >
+                            <ImageIcon className="w-3.5 h-3.5" />
+                            <span>Lihat Bukti Transfer</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
 
-                    <div>
-                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                        <span className="text-sm font-semibold text-slate-900">{payment.headOfFamily}</span>
-                        <span className="text-xs text-slate-500">({payment.houseNumber})</span>
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                            isLunas
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : isPending
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-rose-100 text-rose-700'
-                          }`}
-                        >
-                          {payment.status}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center space-x-2 text-xs text-slate-500 mt-1 flex-wrap">
-                        <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
-                          Bulan: {formatPeriodMonth(payment.periodMonth)}
-                        </span>
-                        <span>•</span>
-                        <span>{formatDateIndo(payment.paidAt)}</span>
-                        <span>•</span>
-                        <span className="capitalize">{payment.paymentMethod}</span>
-                        <span>•</span>
-                        <span className="font-mono text-[11px]">{payment.receiptNo}</span>
-                      </div>
-
-                      {payment.notes && (
-                        <p className="text-[11px] text-slate-500 mt-1 italic">
-                          Catatan: {payment.notes}
+                    <div className="flex items-center justify-between sm:justify-end space-x-3 sm:border-l sm:border-slate-100 sm:pl-4">
+                      <div className="sm:text-right">
+                        <p className="text-base font-bold text-slate-900">
+                          {formatRupiah(payment.amount)}
                         </p>
-                      )}
+                        <p className="text-[10px] text-slate-400">{payment.feeType}</p>
+                      </div>
 
-                      {payment.transferProofUrl && (
-                        <button
-                          onClick={() => setPreviewProofUrl(payment.transferProofUrl || null)}
-                          className="inline-flex items-center space-x-1 text-[11px] text-indigo-600 hover:text-indigo-800 font-medium mt-1"
-                        >
-                          <ImageIcon className="w-3.5 h-3.5" />
-                          <span>Lihat Bukti Transfer</span>
-                        </button>
-                      )}
+                      <div className="flex items-center space-x-1.5">
+                        {/* View Receipt Button (available if lunas) */}
+                        {isLunas && (
+                          <button
+                            onClick={() => onViewReceipt(payment)}
+                            className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
+                            title="Lihat Kuitansi Resmi"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Kuitansi</span>
+                          </button>
+                        )}
+
+                        {/* Admin Verification Actions for pending items */}
+                        {userRole === 'admin' && isPending && (
+                          <>
+                            <button
+                              onClick={() => handleVerify(payment.id)}
+                              className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-2xs"
+                              title="Konfirmasi Lunas"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              <span>Verifikasi</span>
+                            </button>
+                            <button
+                              onClick={() => handleReject(payment.id)}
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 transition"
+                              title="Tolak Laporan"
+                            >
+                              Tolak
+                            </button>
+                          </>
+                        )}
+
+                        {/* Admin Delete Action */}
+                        {userRole === 'admin' && (
+                          <button
+                            onClick={() => handleDelete(payment.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 transition"
+                            title="Hapus Transaksi"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
+                );
+              })}
+            </div>
 
-                  <div className="flex items-center justify-between sm:justify-end space-x-3 sm:border-l sm:border-slate-100 sm:pl-4">
-                    <div className="sm:text-right">
-                      <p className="text-base font-bold text-slate-900">
-                        {formatRupiah(payment.amount)}
-                      </p>
-                      <p className="text-[10px] text-slate-400">{payment.feeType}</p>
-                    </div>
+            {/* Pagination Controls Bar (Max 20 Per Page) */}
+            <div className="px-5 py-3.5 bg-slate-50/90 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+              <div className="text-slate-500 font-medium">
+                Menampilkan <span className="font-bold text-slate-800">{startIndex + 1}</span> -{' '}
+                <span className="font-bold text-slate-800">{endIndex}</span> dari{' '}
+                <span className="font-bold text-slate-800">{totalItems}</span> transaksi
+                {totalPages > 1 && ` (Halaman ${activePage} dari ${totalPages})`}
+              </div>
 
-                    <div className="flex items-center space-x-1.5">
-                      {/* View Receipt Button (available if lunas) */}
-                      {isLunas && (
-                        <button
-                          onClick={() => onViewReceipt(payment)}
-                          className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
-                          title="Lihat Kuitansi Resmi"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>Kuitansi</span>
-                        </button>
-                      )}
+              <div className="flex items-center space-x-1.5">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={activePage <= 1}
+                  className="flex items-center space-x-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-slate-700 transition shadow-2xs"
+                  title="Tampilkan 20 transaksi sebelumnya"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Sebelumnya</span>
+                </button>
 
-                      {/* Admin Verification Actions for pending items */}
-                      {userRole === 'admin' && isPending && (
-                        <>
-                          <button
-                            onClick={() => handleVerify(payment.id)}
-                            className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition shadow-2xs"
-                            title="Konfirmasi Lunas"
-                          >
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            <span>Verifikasi</span>
-                          </button>
-                          <button
-                            onClick={() => handleReject(payment.id)}
-                            className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 transition"
-                            title="Tolak Laporan"
-                          >
-                            Tolak
-                          </button>
-                        </>
-                      )}
-
-                      {/* Admin Delete Action */}
-                      {userRole === 'admin' && (
-                        <button
-                          onClick={() => handleDelete(payment.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-100 transition"
-                          title="Hapus Transaksi"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                {/* Numbered page indicator pills */}
+                <div className="flex items-center space-x-1 px-1">
+                  {Array.from({ length: totalPages }).map((_, idx) => {
+                    const pageNum = idx + 1;
+                    if (
+                      totalPages > 6 &&
+                      pageNum !== 1 &&
+                      pageNum !== totalPages &&
+                      Math.abs(pageNum - activePage) > 1
+                    ) {
+                      if (pageNum === 2 || pageNum === totalPages - 1) {
+                        return (
+                          <span key={pageNum} className="px-1 text-slate-400">
+                            ...
+                          </span>
+                        );
+                      }
+                      return null;
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-7 h-7 rounded-lg text-xs font-semibold transition ${
+                          pageNum === activePage
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={activePage >= totalPages}
+                  className="flex items-center space-x-1 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-slate-700 transition shadow-2xs"
+                  title="Tampilkan 20 transaksi berikutnya"
+                >
+                  <span>Sesudahnya</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
